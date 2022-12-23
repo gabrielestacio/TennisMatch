@@ -3,11 +3,14 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 )
 
-var placar [3][2]int               //Placar do jogo
-var points, games, sets = 60, 1, 1 //Regras de pontuação do jogo. Podem ser alteradas pelo usuário (ver funções tela e regras)
+var placar [3][2]int   //Placar do jogo
+var games, sets = 1, 1 //Regras de pontuação do jogo. Podem ser alteradas pelo usuário (ver funções tela e regras)
+var waitGroup sync.WaitGroup
+var terminou bool = false
 
 // Funções auxiliares
 func tela() {
@@ -38,8 +41,6 @@ func regras() {
 	//definidos os valores 60, para pontos, 1, para games, e 1 para sets.
 
 	fmt.Println("-----------------------------------------------------------------------------------------")
-	fmt.Println("Número de pontos para vencer o game: ")
-	fmt.Scanln(&points)
 	fmt.Println("Número mínimo de games para vencer o set: ")
 	fmt.Scanln(&games)
 	fmt.Println("Número mínimo de sets para vencer a partida: ")
@@ -50,527 +51,67 @@ func marcou(player int) {
 	//Essa função simplesmente informa que o PLAYER marcou um ponto e atualiza e imprime o placar
 
 	fmt.Println("-----------------------------------------------------------------------------------------")
-	fmt.Println(">>> PLAYER " + string(player) + " marcou ponto.")
-	atualizaPlacar(player)
-	fmt.Printf("   | PLAYER 1 | %d | %d | %d |\n", placar[0][0], placar[1][0], placar[2][0])
-	fmt.Printf("   | PLAYER 2 | %d | %d | %d |\n", placar[0][1], placar[1][1], placar[2][1])
+	fmt.Printf(">>> PLAYER %d marcou ponto.\n", player)
+	if player == 1 { //Se o vencedor do ponto for o PLAYER 1...
+		atualizaPlacar(0, 1) //...o placar é atualizado com a informação de quem ganhou e de quem perdeu o ponto (winner, loser)
+	} else { //Se o vencedor do ponto for o PLAYER 2...
+		atualizaPlacar(1, 0) //...o placar é atualizado com a informação de quem ganhou e de quem perdeu o ponto (winner, loser)
+	}
+	fmt.Printf("  | PLAYER 1 | %d | %d | %d |\n", placar[0][0], placar[1][0], placar[2][0])
+	fmt.Printf("  | PLAYER 2 | %d | %d | %d |\n", placar[0][1], placar[1][1], placar[2][1])
 	fmt.Println("-----------------------------------------------------------------------------------------")
-	fmt.Println("									   NOVA JOGADA                                        ")
-	fmt.Println("-----------------------------------------------------------------------------------------")
+
+	if terminou == true { //Se a partida tiver terminado com este ponto conquistado...
+		fmt.Printf(">>> PLAYER %d venceu o jogo.", player)
+		fmt.Println("                                      FIM DE JOGO")
+		fmt.Println("-----------------------------------------------------------------------------------------")
+	} else {
+		fmt.Println("                                      NOVA JOGADA")
+		fmt.Println("-----------------------------------------------------------------------------------------")
+	}
 }
 
-func atualizaPlacar(player int) bool {
-	//Essa função atualiza a pontuação de uma player. Retorna um valor boolean que é positivo quando a partida é encerrada
-	//e negativo, caso contrário.
-	//Essa função é um megazord. Ela descreve todos os cenários de pontuação possíveis numa partida de tênis para dois
-	//jogadores. Porém, para possibilitar a compreensão, ela está toda documentada com a descrição de cada cenário e ação,
-	//e está minimizada, para facilitar a visualização.
+func atualizaPlacar(winner, loser int) {
+	//Essa função atualiza a pontuação de uma player. Pode alterar uma variável de valor boolean que é positivo quando a partida é encerrada.
+	//Ela descreve todos os cenários de pontuação possíveis numa partida de tênis para dois
+	//jogadores.
 
 	/* placar[0][x] : Equivale ao número de pontos do PLAYER x
 	   placar[1][x] : Equivale ao número de games do PLAYER x
 	   placar[2][x] : Equivale ao número de sets do PLAYER x
 	*/
 
-	if player == 1 { //CENÁRIOS PARA O PLAYER 1
-
-		if placar[2][0] == games-1 {
-			/* CENÁRIO DE SETS 1
-			Caso ele esteja a um set da vitória...
-			*/
-
-			if /*CENÁRIO 1*/ placar[1][0] == games-1 && placar[1][1] < games-1 || /*CENÁRIO 2*/ placar[1][0] >= games && placar[1][1] < placar[1][0] {
-				/* CENÁRIO DE GAMES 1
-					Caso ele esteja a um game de abrir uma diferença de dois games para seu adversário e atingir o mínimo
-					de games para fechar o set.
-
-				   CENÁRIO DE GAMES 2
-					Caso ele esteja a apenas um game de vantagem do adversário, mesmo já tendo atingido a quantidade
-				    mínima de games para fechar o set. Pela regra do tênis, é necessário tem uma vantagem de,
-				    pelo menos, dois games para fechar o set.
-				*/
-
-				if placar[0][0] == 45 && placar[0][1] < 45 {
-					/*CENÁRIO ESPECIAL DE PONTOS 1
-					Caso ele esteja em vantagem no último ponto. Neste cenário, era um match point. Como ele marcou,
-					venceu o jogo.
-					*/
-					placar[2][0]++ //Aumenta a contagem de sets em 1
-					fmt.Println("-----------------------------------------------------------------------------------------")
-					fmt.Println(">>> PLAYER 1 venceu o jogo por " + string(placar[2][0]) + "x" + string(placar[2][1]) + ".")
-					fmt.Println("-----------------------------------------------------------------------------------------")
-					return true
-
-				} else if placar[0][0] == 45 && placar[0][1] == 45 {
-					/* CENÁRIO ESPECIAL DE PONTOS 2
-					Caso ele esteja empatado com o adversário. Neste cenário, ganha 5 pontos que representam a regra
-					ADVANTAGE do tênis
-					*/
-					placar[0][0] += 5 //Aumenta a contagem de pontos em 5, simbolizando o ADVANTAGE
-
-				} else if placar[0][0] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 3
-					Caso ele tenha conquistado o ADVANTAGE e tenha marcado mais uma vez. Neste cenário, fecha o game.
-					Como estava a um game de fechar o set, também fecha o set. E, como estava também a um set de ganhar
-					o jogo, ele vence a partida.
-					*/
-					placar[2][0]++ //Aumenta a contagem de sets em 1
-					fmt.Println("-----------------------------------------------------------------------------------------")
-					fmt.Println(">>> PLAYER 1 venceu o jogo por " + string(placar[2][0]) + "x" + string(placar[2][1]) + ".")
-					fmt.Println("-----------------------------------------------------------------------------------------")
-					return true
-
-				} else if placar[0][0] == 45 && placar[0][1] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 4
-					Caso o adversário tenha conquistado o ADVANTAGE. Neste cenário, como foi PLAYER que marcou,
-					o adversário perde o ADVANTAGE e a disputa volta para o empate simples 45 a 45
-					*/
-					placar[0][1] -= 5 //Diminui a contagem de pontos do adversário em 5, pois perdeu o ADVANTAGE
-
-				} else if placar[0][0] > 0 && placar[0][0] < 45 {
-					/* CENÁRIO NORMAL DE PONTOS
-					Caso o PLAYER tenha menos de 45 pontos (0, 15 OU 30), ou seja, conquistou 15 pontos simples,
-					sem cenário especial.
-					*/
-					placar[0][0] += 15 //Aumenta a contagem de pontos em 5
-				}
-
-			} else {
-				/* CENÁRIO DE GAMES 3, 4 E 5
-				Está cláusula "else" inclui os outros três cenários possíveis, descritos abaixo, que executam as mesmas ações
-
-				CENÁRIO DE GAMES 3
-				 Os PLAYERs estão empatados no número de games. Mesmo que vencer um game signifique que o PLAYER atingiu
-				 o número mínimo de games necessários para fechar o set, pela regra do tênis, ele precisa de uma
-				 vantagem de pelo menos dois games para fechar o set. Por isso, é apenas adicionada uma unidade a sua
-				 contagem de sets.
-
-				CENÁRIO DE GAMES 4
-				 O PLAYER está em desvantagem no número de games, mesmo os dois já tendo atingido a quantidade mínima de
-				 games. Pela mesma regra descrita acima, seu adversário necessitaria de dois games de vantagens para
-				 fechar o set. Por isso, o set ainda não foi encerrado e uma unidade é adicionada a sua contagem de sets.
-
-				CENÁRIO DE GAMES 5
-				 Cenário normal, onde o PLAYER ainda não atingiu a quantidade necessária de games para fechar o set.
-				*/
-
-				if placar[0][0] == 45 && placar[0][1] < 45 {
-					/*CENÁRIO ESPECIAL DE PONTOS 5
-					Caso ele esteja em vantagem no último ponto para fechar o game. Neste cenário, não era um match point,
-					pois ganhando este game, o PLAYER não fecha o set. Portanto, foi apenas adicionada uma unidade a
-					sua contagem de games. Os placares de pontos são zerados para o próximo game.
-					*/
-					placar[1][0]++
-					placar[0][0] = 0
-					placar[0][1] = 0
-
-				} else if placar[0][0] == 45 && placar[0][1] == 45 {
-					/* CENÁRIO ESPECIAL DE PONTOS 6
-					Caso ele esteja empatado com o adversário. Neste cenário, ganha 5 pontos que representam a regra
-					ADVANTAGE do tênis
-					*/
-					placar[0][0] += 5
-
-				} else if placar[0][0] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 7
-					Caso ele tenha conquistado o ADVANTAGE e tenha marcado mais uma vez. Neste cenário, fecha o game.
-					Como não estava a um game de fechar o set, apenas uma unidade é adicionada a sua contagem de games.
-					Os placares de pontos são zerados para o próximo game.
-					*/
-					placar[1][0]++
-					placar[0][0] = 0
-					placar[0][1] = 0
-
-				} else if placar[0][0] == 45 && placar[0][1] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 8
-					Caso o adversário tenha conquistado o ADVANTAGE. Neste cenário, como foi PLAYER que marcou,
-					o adversário perde o ADVANTAGE e a disputa volta para o empate simples 45 a 45
-					*/
-					placar[0][1] -= 5
-
-				} else if placar[0][0] > 0 && placar[0][0] < 45 {
-					/* CENÁRIO NORMAL DE PONTOS
-					Caso o PLAYER tenha menos de 45 pontos (0, 15 OU 30), ou seja, conquistou 15 pontos simples,
-					sem cenário especial.
-					*/
-					placar[0][0] += 15
-				}
-			}
-
-		} else if placar[2][0] < games-1 {
-			/* CENÁRIO DE SETS 2
-			Caso ele não esteja a um set da vitória...
-			*/
-
-			if /*CENÁRIO 1*/ placar[1][0] == games-1 && placar[1][1] < games-1 || /*CENÁRIO 2*/ placar[1][0] >= games && placar[1][1] < placar[1][0] {
-				/* CENÁRIO DE GAMES 1
-					Caso ele esteja a um game de abrir uma diferença de dois games para seu adversário e atingir o mínimo
-					de games para fechar o set.
-
-				   CENÁRIO DE GAMES 2
-					Caso ele esteja a apenas um game de vantagem do adversário, mesmo já tendo atingido a quantidade
-				    mínima de games para fechar o set. Pela regra do tênis, é necessário tem uma vantagem de,
-				    pelo menos, dois games para fechar o set.
-				*/
-
-				if placar[0][0] == 45 && placar[0][1] < 45 {
-					/*CENÁRIO ESPECIAL DE PONTOS 1
-					Caso ele esteja em vantagem no último ponto. Neste cenário, o número de sets é incrementado em 1 e
-					os placares de games e pontos são zerados para o próximo set.
-					*/
-					placar[2][0]++ //Aumenta a contagem de sets em 1
-					placar[1][0] = 0
-					placar[1][1] = 0
-					placar[0][0] = 0
-					placar[0][1] = 0
-
-				} else if placar[0][0] == 45 && placar[0][1] == 45 {
-					/* CENÁRIO ESPECIAL DE PONTOS 2
-					Caso ele esteja empatado com o adversário. Neste cenário, ganha 5 pontos que representam a regra
-					ADVANTAGE do tênis
-					*/
-					placar[0][0] += 5 //Aumenta a contagem de pontos em 5, simbolizando o ADVANTAGE
-
-				} else if placar[0][0] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 3
-					Caso ele tenha conquistado o ADVANTAGE e tenha marcado mais uma vez. Neste cenário, fecha o game.
-					Como estava a um game de fechar o set, também fecha o set. O número de sets é incrementado em 1 e
-					os placares de games e pontos são zerados para o próximo set.
-					*/
-					placar[2][0]++ //Aumenta a contagem de sets em 1
-					placar[1][0] = 0
-					placar[1][1] = 0
-					placar[0][0] = 0
-					placar[0][1] = 0
-
-				} else if placar[0][0] == 45 && placar[0][1] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 4
-					Caso o adversário tenha conquistado o ADVANTAGE. Neste cenário, como foi PLAYER que marcou,
-					o adversário perde o ADVANTAGE e a disputa volta para o empate simples 45 a 45
-					*/
-					placar[0][1] -= 5 //Diminui a contagem de pontos do adversário em 5, pois perdeu o ADVANTAGE
-
-				} else if placar[0][0] > 0 && placar[0][0] < 45 {
-					/* CENÁRIO NORMAL DE PONTOS
-					Caso o PLAYER tenha menos de 45 pontos (0, 15 OU 30), ou seja, conquistou 15 pontos simples,
-					sem cenário especial.
-					*/
-					placar[0][0] += 15 //Aumenta a contagem de pontos em 5
-				}
-
-			} else {
-				/* CENÁRIO DE GAMES 3, 4 E 5
-				Está cláusula "else" inclui os outros três cenários possíveis, descritos abaixo, que executam as mesmas ações
-
-				CENÁRIO DE GAMES 3
-				 Os PLAYERs estão empatados no número de games. Mesmo que vencer um game signifique que o PLAYER atingiu
-				 o número mínimo de games necessários para fechar o set, pela regra do tênis, ele precisa de uma
-				 vantagem de pelo menos dois games para fechar o set. Por isso, é apenas adicionada uma unidade a sua
-				 contagem de sets.
-
-				CENÁRIO DE GAMES 4
-				 O PLAYER está em desvantagem no número de games, mesmo os dois já tendo atingido a quantidade mínima de
-				 games. Pela mesma regra descrita acima, seu adversário necessitaria de dois games de vantagens para
-				 fechar o set. Por isso, o set ainda não foi encerrado e uma unidade é adicionada a sua contagem de sets.
-
-				CENÁRIO DE GAMES 5
-				 Cenário normal, onde o PLAYER ainda não atingiu a quantidade necessária de games para fechar o set.
-				*/
-
-				if placar[0][0] == 45 && placar[0][1] < 45 {
-					/*CENÁRIO ESPECIAL DE PONTOS 5
-					Caso ele esteja em vantagem no último ponto para fechar o game. Neste cenário, não era um match point,
-					pois ganhando este game, o PLAYER não fecha o set. Portanto, foi apenas adicionada uma unidade a
-					sua contagem de games. Os placares de pontos são zerados para o próximo game.
-					*/
-					placar[1][0]++
-					placar[0][0] = 0
-					placar[0][1] = 0
-
-				} else if placar[0][0] == 45 && placar[0][1] == 45 {
-					/* CENÁRIO ESPECIAL DE PONTOS 6
-					Caso ele esteja empatado com o adversário. Neste cenário, ganha 5 pontos que representam a regra
-					ADVANTAGE do tênis
-					*/
-					placar[0][0] += 5
-
-				} else if placar[0][0] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 7
-					Caso ele tenha conquistado o ADVANTAGE e tenha marcado mais uma vez. Neste cenário, fecha o game.
-					Como não estava a um game de fechar o set, apenas uma unidade é adicionada a sua contagem de games.
-					Os placares de pontos são zerados para o próximo game.
-					*/
-					placar[1][0]++
-					placar[0][0] = 0
-					placar[0][1] = 0
-
-				} else if placar[0][0] == 45 && placar[0][1] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 8
-					Caso o adversário tenha conquistado o ADVANTAGE. Neste cenário, como foi PLAYER que marcou,
-					o adversário perde o ADVANTAGE e a disputa volta para o empate simples 45 a 45
-					*/
-					placar[0][1] -= 5
-
-				} else if placar[0][0] > 0 && placar[0][0] < 45 {
-					/* CENÁRIO NORMAL DE PONTOS
-					Caso o PLAYER tenha menos de 45 pontos (0, 15 OU 30), ou seja, conquistou 15 pontos simples,
-					sem cenário especial.
-					*/
-					placar[0][0] += 15
-				}
-			}
+	if placar[0][winner] == 45 { //O PLAYER que marcou o ponto está prestes a ganhar o game...
+		if placar[0][loser] == 45 { //...se o adversário também tem 45 pontos, configura um DEUCE (empate, na regra do tênis)...
+			placar[0][winner] += 5 //...portanto, PLAYER recebe mais 5 pontos, simbolizando o conceito da regra ADVANTAGE
+		} else if placar[0][loser] > 45 { //...se o adversário também tinha 45 pontos, mas já ganhou o ADVANTAGE, o ADVANTAGE é retirado dele
+			placar[0][loser] -= 5 //...portanto, o adversário perde 5 pontos
+		} else if placar[0][loser] < 45 { //...se o adversário tinha menos de 45 pontos...
+			placar[0][winner] += 15 //...15 pontos são somados a pontuação do PLAYER e ele fecha este game
 		}
-
-	} else if player == 2 { //CENÁRIOS PARA O PLAYER 2
-
-		if placar[2][1] == games-1 {
-			/* CENÁRIO DE SETS 1
-			Caso ele esteja a um set da vitória...
-			*/
-
-			if /*CENÁRIO 1*/ placar[1][1] == games-1 && placar[1][0] < games-1 || /*CENÁRIO 2*/ placar[1][1] >= games && placar[1][0] < placar[1][1] {
-				/* CENÁRIO DE GAMES 1
-					Caso ele esteja a um game de abrir uma diferença de dois games para seu adversário e atingir o mínimo
-					de games para fechar o set.
-
-				   CENÁRIO DE GAMES 2
-					Caso ele esteja a apenas um game de vantagem do adversário, mesmo já tendo atingido a quantidade
-				    mínima de games para fechar o set. Pela regra do tênis, é necessário tem uma vantagem de,
-				    pelo menos, dois games para fechar o set.
-				*/
-
-				if placar[0][1] == 45 && placar[0][0] < 45 {
-					/*CENÁRIO ESPECIAL DE PONTOS 1
-					Caso ele esteja em vantagem no último ponto. Neste cenário, era um match point. Como ele marcou,
-					venceu o jogo.
-					*/
-					placar[2][1]++ //Aumenta a contagem de sets em 1
-					fmt.Println("-----------------------------------------------------------------------------------------")
-					fmt.Println(">>> PLAYER 2 venceu o jogo por " + string(placar[2][0]) + "x" + string(placar[2][1]) + ".")
-					fmt.Println("-----------------------------------------------------------------------------------------")
-					return true
-
-				} else if placar[0][1] == 45 && placar[0][0] == 45 {
-					/* CENÁRIO ESPECIAL DE PONTOS 2
-					Caso ele esteja empatado com o adversário. Neste cenário, ganha 5 pontos que representam a regra
-					ADVANTAGE do tênis
-					*/
-					placar[0][1] += 5 //Aumenta a contagem de pontos em 5, simbolizando o ADVANTAGE
-
-				} else if placar[0][1] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 3
-					Caso ele tenha conquistado o ADVANTAGE e tenha marcado mais uma vez. Neste cenário, fecha o game.
-					Como estava a um game de fechar o set, também fecha o set. E, como estava também a um set de ganhar
-					o jogo, ele vence a partida.
-					*/
-					placar[2][1]++ //Aumenta a contagem de sets em 1
-					fmt.Println("-----------------------------------------------------------------------------------------")
-					fmt.Println(">>> PLAYER 2 venceu o jogo por " + string(placar[2][0]) + "x" + string(placar[2][1]) + ".")
-					fmt.Println("-----------------------------------------------------------------------------------------")
-					return true
-
-				} else if placar[0][1] == 45 && placar[0][0] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 4
-					Caso o adversário tenha conquistado o ADVANTAGE. Neste cenário, como foi PLAYER que marcou,
-					o adversário perde o ADVANTAGE e a disputa volta para o empate simples 45 a 45
-					*/
-					placar[0][0] -= 5 //Diminui a contagem de pontos do adversário em 5, pois perdeu o ADVANTAGE
-
-				} else if placar[0][1] > 0 && placar[0][1] < 45 {
-					/* CENÁRIO NORMAL DE PONTOS
-					Caso o PLAYER tenha menos de 45 pontos (0, 15 OU 30), ou seja, conquistou 15 pontos simples,
-					sem cenário especial.
-					*/
-					placar[0][1] += 15 //Aumenta a contagem de pontos em 5
-				}
-
-			} else {
-				/* CENÁRIO DE GAMES 3, 4 E 5
-				Está cláusula "else" inclui os outros três cenários possíveis, descritos abaixo, que executam as mesmas ações
-
-				CENÁRIO DE GAMES 3
-				 Os PLAYERs estão empatados no número de games. Mesmo que vencer um game signifique que o PLAYER atingiu
-				 o número mínimo de games necessários para fechar o set, pela regra do tênis, ele precisa de uma
-				 vantagem de pelo menos dois games para fechar o set. Por isso, é apenas adicionada uma unidade a sua
-				 contagem de sets.
-
-				CENÁRIO DE GAMES 4
-				 O PLAYER está em desvantagem no número de games, mesmo os dois já tendo atingido a quantidade mínima de
-				 games. Pela mesma regra descrita acima, seu adversário necessitaria de dois games de vantagens para
-				 fechar o set. Por isso, o set ainda não foi encerrado e uma unidade é adicionada a sua contagem de sets.
-
-				CENÁRIO DE GAMES 5
-				 Cenário normal, onde o PLAYER ainda não atingiu a quantidade necessária de games para fechar o set.
-				*/
-
-				if placar[0][1] == 45 && placar[0][0] < 45 {
-					/*CENÁRIO ESPECIAL DE PONTOS 5
-					Caso ele esteja em vantagem no último ponto para fechar o game. Neste cenário, não era um match point,
-					pois ganhando este game, o PLAYER não fecha o set. Portanto, foi apenas adicionada uma unidade a
-					sua contagem de games. Os placares de pontos são zerados para o próximo game.
-					*/
-					placar[1][1]++
-					placar[0][1] = 0
-					placar[0][0] = 0
-
-				} else if placar[0][1] == 45 && placar[0][0] == 45 {
-					/* CENÁRIO ESPECIAL DE PONTOS 6
-					Caso ele esteja empatado com o adversário. Neste cenário, ganha 5 pontos que representam a regra
-					ADVANTAGE do tênis
-					*/
-					placar[0][1] += 5
-
-				} else if placar[0][1] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 7
-					Caso ele tenha conquistado o ADVANTAGE e tenha marcado mais uma vez. Neste cenário, fecha o game.
-					Como não estava a um game de fechar o set, apenas uma unidade é adicionada a sua contagem de games.
-					Os placares de pontos são zerados para o próximo game.
-					*/
-					placar[1][1]++
-					placar[0][1] = 0
-					placar[0][0] = 0
-
-				} else if placar[0][1] == 45 && placar[0][0] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 8
-					Caso o adversário tenha conquistado o ADVANTAGE. Neste cenário, como foi PLAYER que marcou,
-					o adversário perde o ADVANTAGE e a disputa volta para o empate simples 45 a 45
-					*/
-					placar[0][0] -= 5
-
-				} else if placar[0][1] > 0 && placar[0][1] < 45 {
-					/* CENÁRIO NORMAL DE PONTOS
-					Caso o PLAYER tenha menos de 45 pontos (0, 15 OU 30), ou seja, conquistou 15 pontos simples,
-					sem cenário especial.
-					*/
-					placar[0][1] += 15
-				}
-			}
-
-		} else if placar[2][1] < games-1 {
-			/* CENÁRIO DE SETS 2
-			Caso ele não esteja a um set da vitória...
-			*/
-
-			if /*CENÁRIO 1*/ placar[1][1] == games-1 && placar[1][0] < games-1 || /*CENÁRIO 2*/ placar[1][1] >= games && placar[1][0] < placar[1][1] {
-				/* CENÁRIO DE GAMES 1
-					Caso ele esteja a um game de abrir uma diferença de dois games para seu adversário e atingir o mínimo
-					de games para fechar o set.
-
-				   CENÁRIO DE GAMES 2
-					Caso ele esteja a apenas um game de vantagem do adversário, mesmo já tendo atingido a quantidade
-				    mínima de games para fechar o set. Pela regra do tênis, é necessário tem uma vantagem de,
-				    pelo menos, dois games para fechar o set.
-				*/
-
-				if placar[0][1] == 45 && placar[0][0] < 45 {
-					/*CENÁRIO ESPECIAL DE PONTOS 1
-					Caso ele esteja em vantagem no último ponto. Neste cenário, o número de sets é incrementado em 1 e
-					os placares de games e pontos são zerados para o próximo set.
-					*/
-					placar[2][1]++ //Aumenta a contagem de sets em 1
-					placar[1][1] = 0
-					placar[1][0] = 0
-					placar[0][1] = 0
-					placar[0][0] = 0
-
-				} else if placar[0][1] == 45 && placar[0][0] == 45 {
-					/* CENÁRIO ESPECIAL DE PONTOS 2
-					Caso ele esteja empatado com o adversário. Neste cenário, ganha 5 pontos que representam a regra
-					ADVANTAGE do tênis
-					*/
-					placar[0][1] += 5 //Aumenta a contagem de pontos em 5, simbolizando o ADVANTAGE
-
-				} else if placar[0][1] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 3
-					Caso ele tenha conquistado o ADVANTAGE e tenha marcado mais uma vez. Neste cenário, fecha o game.
-					Como estava a um game de fechar o set, também fecha o set. O número de sets é incrementado em 1 e
-					os placares de games e pontos são zerados para o próximo set.
-					*/
-					placar[2][1]++ //Aumenta a contagem de sets em 1
-					placar[1][1] = 0
-					placar[1][0] = 0
-					placar[0][1] = 0
-					placar[0][0] = 0
-
-				} else if placar[0][1] == 45 && placar[0][0] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 4
-					Caso o adversário tenha conquistado o ADVANTAGE. Neste cenário, como foi PLAYER que marcou,
-					o adversário perde o ADVANTAGE e a disputa volta para o empate simples 45 a 45
-					*/
-					placar[0][0] -= 5 //Diminui a contagem de pontos do adversário em 5, pois perdeu o ADVANTAGE
-
-				} else if placar[0][1] > 0 && placar[0][1] < 45 {
-					/* CENÁRIO NORMAL DE PONTOS
-					Caso o PLAYER tenha menos de 45 pontos (0, 15 OU 30), ou seja, conquistou 15 pontos simples,
-					sem cenário especial.
-					*/
-					placar[0][1] += 15 //Aumenta a contagem de pontos em 5
-				}
-
-			} else {
-				/* CENÁRIO DE GAMES 3, 4 E 5
-				Está cláusula "else" inclui os outros três cenários possíveis, descritos abaixo, que executam as mesmas ações
-
-				CENÁRIO DE GAMES 3
-				 Os PLAYERs estão empatados no número de games. Mesmo que vencer um game signifique que o PLAYER atingiu
-				 o número mínimo de games necessários para fechar o set, pela regra do tênis, ele precisa de uma
-				 vantagem de pelo menos dois games para fechar o set. Por isso, é apenas adicionada uma unidade a sua
-				 contagem de sets.
-
-				CENÁRIO DE GAMES 4
-				 O PLAYER está em desvantagem no número de games, mesmo os dois já tendo atingido a quantidade mínima de
-				 games. Pela mesma regra descrita acima, seu adversário necessitaria de dois games de vantagens para
-				 fechar o set. Por isso, o set ainda não foi encerrado e uma unidade é adicionada a sua contagem de sets.
-
-				CENÁRIO DE GAMES 5
-				 Cenário normal, onde o PLAYER ainda não atingiu a quantidade necessária de games para fechar o set.
-				*/
-
-				if placar[0][1] == 45 && placar[0][0] < 45 {
-					/*CENÁRIO ESPECIAL DE PONTOS 5
-					Caso ele esteja em vantagem no último ponto para fechar o game. Neste cenário, não era um match point,
-					pois ganhando este game, o PLAYER não fecha o set. Portanto, foi apenas adicionada uma unidade a
-					sua contagem de games. Os placares de pontos são zerados para o próximo game.
-					*/
-					placar[1][1]++
-					placar[0][0] = 0
-					placar[0][1] = 0
-
-				} else if placar[0][1] == 45 && placar[0][0] == 45 {
-					/* CENÁRIO ESPECIAL DE PONTOS 6
-					Caso ele esteja empatado com o adversário. Neste cenário, ganha 5 pontos que representam a regra
-					ADVANTAGE do tênis
-					*/
-					placar[0][1] += 5
-
-				} else if placar[0][1] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 7
-					Caso ele tenha conquistado o ADVANTAGE e tenha marcado mais uma vez. Neste cenário, fecha o game.
-					Como não estava a um game de fechar o set, apenas uma unidade é adicionada a sua contagem de games.
-					Os placares de pontos são zerados para o próximo game.
-					*/
-					placar[1][1]++
-					placar[0][1] = 0
-					placar[0][0] = 0
-
-				} else if placar[0][1] == 45 && placar[0][0] == 50 {
-					/* CENÁRIO ESPECIAL DE PONTOS 8
-					Caso o adversário tenha conquistado o ADVANTAGE. Neste cenário, como foi PLAYER que marcou,
-					o adversário perde o ADVANTAGE e a disputa volta para o empate simples 45 a 45
-					*/
-					placar[0][0] -= 5
-
-				} else if placar[0][1] > 0 && placar[0][1] < 45 {
-					/* CENÁRIO NORMAL DE PONTOS
-					Caso o PLAYER tenha menos de 45 pontos (0, 15 OU 30), ou seja, conquistou 15 pontos simples,
-					sem cenário especial.
-					*/
-					placar[0][1] += 15
-				}
-			}
-		}
+	} else if placar[0][winner] == 50 { //...se o PLAYER possuía o ADVANTAGE e marcou mais um ponto, vencendo o game...
+		placar[0][winner] += 10 //...apenas 10 pontos são adicionados a sua pontuação, para alcançar o limite máximo de 60 pontos
+	} else { //Descreve todos os outros cenários de pontuação, que inclui as possibilidades de quando PLAYER não está prestes a ganhar o game
+		placar[0][winner] += 15 //15 pontos são adicionados a sua pontuação
 	}
 
-	return false
+	if placar[0][winner] == 60 { //Se o PLAYER possui 60 pontos, significa que ele ganhou o game, portanto...
+		placar[1][winner]++ //...a contagem de games vencidos pelo PLAYER é incrementada em 1 unidade
+		//Placares de pontuação são zerados para o próximo game
+		placar[0][winner] = 0
+		placar[0][loser] = 0
+	}
+
+	if placar[1][winner] >= games && placar[1][loser] < placar[1][winner] { //Se o PLAYER possui a quantidade de games necessária para vencer o set com uma diferença mínima de dois games em relação ao adversário (regra do tênis)...
+		placar[2][winner]++ //...a contagem de sets vencidos pelo PLAYER é incrementada em 1 unidade
+		//Placares de game são zerados para o próximo set
+		placar[1][winner] = 0
+		placar[1][loser] = 0
+	}
+
+	if placar[2][winner] == sets { //Se o PLAYER possui a quantidade de sets necessários para vencer a partida...
+		terminou = true //...a variável que controla o estado da partida recebe valor true, significando que a partida terminou
+	}
 }
 
 func zeraPlacar() {
@@ -589,54 +130,81 @@ func zeraPlacar() {
 }
 
 // Goroutines
-func player1(quadra chan string) {
-	action := <-quadra
-	if action == "Devolveu" {
-		fmt.Print(">>> PLAYER 1 está esperando a bola...")
-		time.Sleep(time.Second)
-		fails := rand.Intn(2)
-		if fails == 0 {
-			quadra <- "Devolveu"
-			fmt.Print(" PLAYER 1 devolveu a bola para o adversário!")
-		} else {
-			quadra <- "Errou"
-			fmt.Print(" PLAYER 1 errou a bola")
+func player1(quadra chan string) { //PLAYER 1
+	defer waitGroup.Done() //Goroutine sinalizará ao WaitGroup que terminou ao final da execução
+
+	event := <-quadra //Lê o que está sendo transmitido pelo canal. No contexto, identifica qual ação foi executada anteriormente.
+
+	if event == "Começa o jogo" { //Caso a ação anterior seja o início do jogo, ou seja, nenhum jogador devolveu a bola ainda...
+		fmt.Println(">>> PLAYER 1 sacou a bola.") //...PLAYER 1 saca a bola...
+		quadra <- "Devolveu"                      //...e a ação é informada no canal
+	} else if event == "Devolveu" { //Caso a ação anterior seja uma devolução de PLAYER 2
+		fmt.Print(">>> PLAYER 1 está esperando a bola... ") //PLAYER 1 se encontra esperando a bola que foi rebatida pelo PLAYER 2...
+		time.Sleep(time.Millisecond * 500)                  //...aguarda a bola chegar...
+
+		fails := rand.Intn(2) //...o programa decide randomicamente se o PLAYER 1 vai acertar a rebatida e devolver a bola ou se vai errar a tentativa.
+		/*  fails == 0 : Significa que o PLAYER 1 não falhou, ou seja, devolveu a bola com sucesso.
+		    fails == 1 : Significa que o PLAYER 1 falhou, ou seja, não devolveu a bola com sucesso.
+		*/
+		if fails == 0 { //Se PLAYER 1 conseguiu devolver a bola
+			fmt.Println("PLAYER 1 devolveu a bola para PLAYER 2") //PLAYER 1 está devolvendo a bola...
+			quadra <- "Devolveu"                                  //...e a ação é informada no canal
+		} else { //Se PLAYER 1 não conseguiu devolver a bola
+			fmt.Println("PLAYER 1 errou.") //PLAYER 1 errou...
+			quadra <- "Errou"              //...e a ação é informada no canal
 		}
-	} else {
-		fmt.Println("EITA")
-		marcou(1)
+	} else if event == "Errou" { //Caso a ação anterior seja um erro de PLAYER 2
+		marcou(1)                 //O ponto é contabilizado para PLAYER 1...
+		quadra <- "Começa o jogo" //...e o reinício do jogo com um novo saque é informado no canal
 	}
 }
 
 func player2(quadra chan string) {
-	action := <-quadra
-	if action == "Devolveu" {
-		fmt.Print(">>> PLAYER 1 está esperando a bola...")
-		time.Sleep(time.Second)
-		fails := rand.Intn(2)
-		if fails == 0 {
-			quadra <- "Devolveu"
-			fmt.Print(" PLAYER 1 devolveu a bola para o adversário!")
-		} else {
-			quadra <- "Errou"
-			fmt.Print(" PLAYER 1 errou a bola")
-		}
-	} else {
-		fmt.Println("EITA")
-		marcou(2)
-	}
+	defer waitGroup.Done() //Goroutine sinalizará ao WaitGroup que terminou ao final da execução
 
+	event := <-quadra //Lê o que está sendo transmitido pelo canal. No contexto, identifica qual ação foi executada anteriormente.
+
+	if event == "Começa o jogo" { //Caso a ação anterior seja o início do jogo, ou seja, nenhum jogador devolveu a bola ainda...
+		fmt.Println(">>> PLAYER 2 sacou a bola...") //...PLAYER 2 saca a bola...
+		quadra <- "Devolveu"                        //...e a ação é informada no canal
+	} else if event == "Devolveu" { //Caso a ação anterior seja uma devolução de PLAYER 1
+		fmt.Print(">>> PLAYER 2 está esperando a bola... ") //PLAYER 2 se encontra esperando a bola que foi rebatida pelo PLAYER 2...
+		time.Sleep(time.Millisecond * 500)                  //...aguarda a bola chegar...
+
+		fails := rand.Intn(2) //...o programa decide randomicamente se o PLAYER 2 vai acertar a rebatida e devolver a bola ou se vai errar a tentativa.
+		/*  fails == 0 : Significa que o PLAYER 2 não falhou, ou seja, devolveu a bola com sucesso.
+		    fails == 1 : Significa que o PLAYER 2 falhou, ou seja, não devolveu a bola com sucesso.
+		*/
+		if fails == 0 { //Se PLAYER 2 conseguiu devolver a bola
+			fmt.Println("PLAYER 2 devolveu a bola para PLAYER 1") //PLAYER 2 está devolvendo a bola...
+			quadra <- "Devolveu"                                  //...e a ação é informada no canal
+		} else { //Se PLAYER 2 não conseguiu devolver a bola
+			fmt.Println("PLAYER 2 errou.") //PLAYER 2 errou...
+			quadra <- "Errou"              //...e a ação é informada no canal
+		}
+	} else if event == "Errou" { //Caso a ação anterior seja um erro de PLAYER 1
+		marcou(2)                 //O ponto é contabilizado para PLAYER 2...
+		quadra <- "Começa o jogo" //...e o reinício do jogo com um novo saque é informado no canal
+	}
 }
 
 // Função main
 func main() {
-	zeraPlacar()
-	tela()
+	zeraPlacar() //Inicializa o placar
+	tela()       //Executa a "tela inicial"
 
-	quadra := make(chan string)
+	quadra := make(chan string, 1) //Cria o canal com buffer de tamanho 1
+	quadra <- "Começa o jogo"      //Sinaliza à primeira goroutine que será executada que o jogo começou
 
-	go player1(quadra)
-	go player2(quadra)
+	//Enquanto o jogo estiver acontecendo...
+	for true {
+		waitGroup.Add(2)      //Duas novas goroutines são adicionadas ao WaitGroup
+		go player1(quadra)    //Goroutine do PLAYER 1
+		go player2(quadra)    //Goroutine do PLAYER 2
+		if terminou == true { //Se a partida tiver terminado...
+			break //...o laço é quebrado
+		}
+	}
 
-	time.Sleep(time.Second * 20)
+	waitGroup.Wait() //O WaitGroup garante que a goroutine main não terminará sua execução enquanto as outras goroutines não tiverem terminado as suas respectivas execuções e o WaitGroup estiver vazio
 }
